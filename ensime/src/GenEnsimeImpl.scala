@@ -158,17 +158,16 @@ object GenEnsimeImpl {
           .from(evalOrElse(evaluator, m.sources, Strict.Agg.empty))
           .toSet
 
+      val allDeps = T.task { m.ivyDeps() ++ m.compileIvyDeps() ++
+      m.scalaLibraryIvyDeps() }
       val externalDependencies = T.task {
-        m.resolveDeps(m.ivyDeps)() ++
-          Task
-            .traverse(m.transitiveModuleDeps)(_.unmanagedClasspath)()
-            .flatten
+        m.resolveDeps(allDeps)()
       }
       val externalSources = T.task {
-        m.resolveDeps(m.ivyDeps, sources = true)()
+        m.resolveDeps(allDeps, sources = true)()
       }
 
-      val libDeps: Set[PathRef] =
+      val libJars: Set[PathRef] =
         Strict.Agg
           .from(evalOrElse(evaluator, externalDependencies, Strict.Agg.empty))
           .toSet
@@ -185,7 +184,7 @@ object GenEnsimeImpl {
         sources.toSet,
         scalacOpts,
         javacOpts,
-        libDeps,
+        libJars,
         libSrcs,
         libDocs
       )
