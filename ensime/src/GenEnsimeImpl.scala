@@ -1,7 +1,7 @@
 package fun.valycorp.mill
 
 import ammonite.ops._
-import coursier.{Repository, Dependency}
+import coursier.{Cache, Repository, Dependency}
 import coursier.maven.MavenRepository
 import mill.define._
 import mill.eval.{Evaluator, PathRef, Result}
@@ -90,6 +90,21 @@ object GenEnsimeImpl {
     EnsimeProjectId(name, config)
   }
 
+  def resolveJars(deps: Seq[Dep], scalaV: String): Set[PathRef] =
+    resolveDependencies(
+      Seq(Cache.ivy2Local,
+          MavenRepository("https://repo1.maven.org/maven2/"),
+          MavenRepository(
+            "https://oss.sonatype.org/content/repositories/releases")),
+      deps.map(Lib.depToDependency(_, scalaV)),
+      deps.map(Lib.depToDependency(_, scalaV))
+    ) match {
+      case Result.Success(e)      => e.items.toSet
+      case Result.Skipped         => Set()
+      case Result.Exception(_, _) => Set()
+      case Result.Failure(_, _)   => Set()
+    }
+
   def ensimeGenerateConfig[T](evaluator: Evaluator[T],
                               rootModule: mill.Module): EnsimeConfig = {
 
@@ -109,7 +124,7 @@ object GenEnsimeImpl {
       .head
       ._1
 
-    val major = ensimeScalaVersion.substring(0, 4)
+    val major = Lib.scalaBinaryVersion(ensimeScalaVersion)
 
     val canon = allModules.filter(s =>
       (s.toString matches s""".*\\[$ensimeScalaVersion\\].*"""))
@@ -117,31 +132,19 @@ object GenEnsimeImpl {
 
     val scalaModules = canon ++ rest
 
-    val scalaLibraryJars: Set[PathRef] = resolveDependencies(
-      Seq(MavenRepository("https://repo1.maven.org/maven2/")),
-      Seq(
-        Lib.depToDependency(ivy"org.scala-lang::scala-library",
-                            ensimeScalaVersion)),
-      Seq()
-    ) match {
-      case Result.Success(e)      => e.items.toSet
-      case Result.Skipped         => Set()
-      case Result.Exception(_, _) => Set()
-      case Result.Failure(_, _)   => Set()
-    }
+    val scalaCompilerJars: Set[PathRef] = Strict.Agg
+      .from(
+        evalOrElse(evaluator,
+                   scalaModules.head.scalaCompilerClasspath,
+                   Strict.Agg.empty))
+      .toSet
 
-    val ensimeServerJars: Set[PathRef] = resolveDependencies(
-      Seq(MavenRepository("https://repo1.maven.org/maven2/")),
-      Seq(
-        Lib.depToDependency(ivy"org.ensime::server:$ensimeServerVersion",
-                            ensimeScalaVersion)),
-      Seq()
-    ) match {
-      case Result.Success(e)      => e.items.toSet
-      case Result.Skipped         => Set()
-      case Result.Exception(_, _) => Set()
-      case Result.Failure(_, _)   => Set()
-    }
+    val ensimeServerJars = resolveJars(
+      Seq(ivy"org.ensime::server:$ensimeServerVersion"),
+      ensimeScalaVersion
+    )
+
+    val serverJars = ensimeServerJars -- scalaCompilerJars
 
     val ensimeProjects = for (m <- scalaModules) yield {
 
@@ -191,7 +194,7 @@ object GenEnsimeImpl {
     EnsimeConfig(
       pwd.toString,
       (pwd / ".ensime_cache").toString,
-      Set(),
+      scalaCompilerJars,
       ensimeServerJars,
       ensimeServerVersion,
       "build-name",
