@@ -14,6 +14,9 @@ import mill.util.Strict.Agg
 
 import scala.util.Try
 
+import java.io.FileNotFoundException
+import java.io.File
+
 case class EnsimeConfig(
     root: String,
     cacheDir: String,
@@ -22,9 +25,9 @@ case class EnsimeConfig(
     ensimeServerVersion: String,
     name: String,
     scalaVersion: String,
-    javaHome: String,
-    javaFlags: List[String],
-    javaSrc: Set[String],
+    javaHome: File,
+    javaFlags: Seq[String],
+    javaSrc: Set[File],
     projects: Seq[EnsimeProject]
 )
 
@@ -47,11 +50,12 @@ case class EnsimeProject(
 
 object GenEnsime extends ExternalModule {
 
-  def ensimeConfig(ev: Evaluator[Any]) = T.command {
+  def ensimeConfig(ev: Evaluator[Any], server: String = "2.0.0") = T.command {
     fun.valycorp.mill.GenEnsimeImpl(
       implicitly,
       ev.rootModule,
-      ev.rootModule.millDiscover
+      ev.rootModule.millDiscover,
+      server
     )
   }
 
@@ -63,7 +67,8 @@ object GenEnsimeImpl {
 
   def apply(ctx: Log with Home,
             rootModule: BaseModule,
-            discover: Discover[_]): Unit = {
+            discover: Discover[_],
+            server: String): Unit = {
 
     import SExpFormatter._
 
@@ -73,7 +78,7 @@ object GenEnsimeImpl {
       new Evaluator(ctx.home, pwd / 'out, pwd / 'out, rootModule, ctx.log)
 
     write.over(pwd / ".ensime",
-               toSExp(ensimeGenerateConfig(evaluator, rootModule)))
+               toSExp(ensimeGenerateConfig(evaluator, rootModule, server)))
   }
 
   def evalOrElse[T](evaluator: Evaluator[_], e: Task[T], default: => T): T = {
@@ -106,9 +111,8 @@ object GenEnsimeImpl {
     }
 
   def ensimeGenerateConfig[T](evaluator: Evaluator[T],
-                              rootModule: mill.Module): EnsimeConfig = {
-
-    val ensimeServerVersion = "2.0.0"
+                              rootModule: mill.Module,
+                              server: String): EnsimeConfig = {
 
     val allModules: Seq[ScalaModule] = rootModule.millInternal.modules.collect {
       case s: ScalaModule => s
@@ -140,12 +144,53 @@ object GenEnsimeImpl {
       .toSet
 
     val ensimeServerJars = resolveJars(
-      Seq(ivy"org.ensime::server:$ensimeServerVersion"),
+      Seq(ivy"org.ensime::server:$server"),
       ensimeScalaVersion
     )
 
     val serverJars = ensimeServerJars -- scalaCompilerJars
 
+    val javaFlags = Seq(
+      "-Dscala.classpath.closeZip=true",
+      "-Xss2m",
+      "-Xms512m",
+      "-Xmx4g",
+      "-XX:MaxMetaspaceSize=256m",
+      // these improve ensime-server performance (ignoring jdk version)
+      "-XX:StringTableSize=1000003",
+      "-XX:+UnlockExperimentalVMOptions",
+      "-XX:SymbolTableSize=1000003"
+    )
+
+    // Code taken from sbt-ensime
+    val javaHome: File = List(
+      // manual
+      sys.env.get("JDK_HOME"),
+      sys.env.get("JAVA_HOME"),
+      // fallback
+      sys.props.get("java.home").map(new File(_).getParent),
+      sys.props.get("java.home"),
+      // osx
+      Try(sys.process.Process("/usr/libexec/java_home").!!.trim).toOption
+    ).flatten
+      .filter { n =>
+        new File(n + "/lib/tools.jar").exists || new File(n, "jmods").isDirectory
+      }
+      .headOption
+      .map(new File(_).getCanonicalFile)
+      .getOrElse(
+        throw new FileNotFoundException(
+          """Could not automatically find the JDK home.
+           |You must explicitly set JDK_HOME or JAVA_HOME.""".stripMargin
+        )
+      )
+
+    val javaSrc: Set[File] = {
+      new File(javaHome.getAbsolutePath + "/src.zip") match {
+        case f if f.exists => Set(f)
+        case _             => Set.empty
+      }
+    }
     val ensimeProjects = for (m <- scalaModules) yield {
 
       val deps = m.moduleDeps.map(_.toString).map(moduleProjectId(_))
@@ -158,8 +203,10 @@ object GenEnsimeImpl {
           .from(evalOrElse(evaluator, m.sources, Strict.Agg.empty))
           .toSet
 
-      val allDeps = T.task { m.ivyDeps() ++ m.compileIvyDeps() ++
-      m.scalaLibraryIvyDeps() }
+      val allDeps = T.task {
+        m.ivyDeps() ++ m.compileIvyDeps() ++
+          m.scalaLibraryIvyDeps()
+      }
       val externalDependencies = T.task {
         m.resolveDeps(allDeps)()
       }
@@ -195,12 +242,12 @@ object GenEnsimeImpl {
       (pwd / ".ensime_cache").toString,
       scalaCompilerJars,
       ensimeServerJars,
-      ensimeServerVersion,
-      "build-name",
+      server,
+      pwd.last,
       ensimeScalaVersion,
-      "javaHome",
-      List(),
-      Set(),
+      javaHome,
+      javaFlags,
+      javaSrc,
       ensimeProjects
     )
   }
@@ -214,9 +261,15 @@ object SExpFormatter {
 
   def toSExp(pr: PathRef): String = toSExp(pr.path.toString)
 
+  def toSExp(f: File): String = toSExp(f.getAbsolutePath)
+
   def ssToSExp(ss: Iterable[String]): String =
     if (ss.isEmpty) "nil"
     else ss.toSeq.map(toSExp).mkString("(", " ", ")")
+
+  def fsToSExp(fs: Iterable[File]): String =
+    if (fs.isEmpty) "nil"
+    else fs.toSeq.map(toSExp).mkString("(", " ", ")")
 
   def prsToSExp(prs: Iterable[PathRef]): String =
     if (prs.isEmpty) "nil"
@@ -242,7 +295,7 @@ object SExpFormatter {
  :name "${c.name}"
  :java-home ${toSExp(c.javaHome)}
  :java-flags ${ssToSExp(c.javaFlags)}
- :java-sources ${ssToSExp(c.javaSrc)}
+ :java-sources ${fsToSExp(c.javaSrc)}
  :scala-version ${toSExp(c.scalaVersion)}
  :projects ${psToSExp(c.projects)}
 )"""
