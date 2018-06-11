@@ -1,2 +1,36 @@
 #+TITLE: mill-ensime
 #+AUTHOR: Yash Yadavalli
+
+ *Note: The project is still in development, alpha quality software.*
+
+This plugin generates the ~.ensime~ file needed by the ensime-server by querying
+the mill build.
+
+* Publish locally
+The plugin is not pulished to any repositories yet, you would have to pulish
+it locally to use it, using
+
+#+BEGIN_SRC bash
+mill ensime.publishLocal
+#+END_SRC
+
+* Usage
+
+To use the plugin add the following to your ~build.sc~ file.
+
+#+BEGIN_SRC scala
+import $ivy.`fun.valycorp::mill-ensime:0.0.1`
+#+END_SRC
+
+You can then run the following to generate the ~.ensime~ file
+
+#+BEGIN_SRC bash
+mill fun.valycorp.mill.GenEnsime/ensimeConfig
+#+END_SRC
+
+Optionally, you can specify the ensime server version using the ~--server~ flag
+like
+
+#+BEGIN_SRC bash
+mill fun.valycorp.mill.GenEnsime/ensimeConfig --server "3.0.0-SNAPSHOT"
+#+END_SRC
