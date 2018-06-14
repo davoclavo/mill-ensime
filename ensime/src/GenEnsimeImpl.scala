@@ -72,13 +72,14 @@ object GenEnsimeImpl {
 
     import SExpFormatter._
 
-    rm ! pwd / ".ensime"
-
     val evaluator =
       new Evaluator(ctx.home, pwd / 'out, pwd / 'out, rootModule, ctx.log)
 
-    write.over(pwd / ".ensime",
-               toSExp(ensimeGenerateConfig(evaluator, rootModule, server)))
+    val config = toSExp(ensimeGenerateConfig(evaluator, rootModule, server))
+
+    rm ! pwd / ".ensime"
+
+    write.over(pwd / ".ensime", config)
   }
 
   def evalOrElse[T](evaluator: Evaluator[_], e: Task[T], default: => T): T = {
