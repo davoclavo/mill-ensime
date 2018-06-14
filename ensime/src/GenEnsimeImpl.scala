@@ -200,7 +200,7 @@ object GenEnsimeImpl {
 
       val sources =
         Strict.Agg
-          .from(evalOrElse(evaluator, m.sources, Strict.Agg.empty))
+          .from(evalOrElse(evaluator, m.allSources, Strict.Agg.empty))
           .toSet
 
       val allDeps = T.task {
