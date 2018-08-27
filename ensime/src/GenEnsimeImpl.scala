@@ -225,11 +225,16 @@ object GenEnsimeImpl {
           .toSet
       val libDocs: Set[PathRef] = Strict.Agg.empty.toSet
 
+      val compileTargets: Set[PathRef] =
+        Strict.Agg
+          .from(evalOrElse(evaluator, T.task{Seq(m.compile().classes)}, Strict.Agg.empty))
+          .toSet
+
       EnsimeProject(
         moduleProjectId(m.toString),
         deps,
         sources.toSet,
-        sources.toSet,
+        compileTargets.toSet,
         scalacOpts,
         javacOpts,
         libJars,
