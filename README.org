@@ -17,7 +17,7 @@ interp.repositories() =
 
 @
 
-import $ivy.`fun.valycorp::mill-ensime:0.0.2`
+import $ivy.`com.github.yyadavalli::mill-ensime:0.0.2`
 #+END_SRC
 
 You can then run the following to generate the ~.ensime~ file
