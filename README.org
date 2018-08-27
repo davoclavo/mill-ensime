@@ -6,20 +6,18 @@
 This plugin generates the ~.ensime~ file needed by the ensime-server by querying
 the mill build.
 
-* Publish locally
-The plugin is not pulished to any repositories yet, you would have to pulish
-it locally to use it, using
-
-#+BEGIN_SRC bash
-mill ensime.publishLocal
-#+END_SRC
-
 * Usage
 
-To use the plugin add the following to your ~build.sc~ file.
+To use the plugin add the following at the top of your ~build.sc~ file.
 
 #+BEGIN_SRC scala
-import $ivy.`fun.valycorp::mill-ensime:0.0.1`
+import mill._
+interp.repositories() =
+  interp.repositories() ++ Seq(coursier.MavenRepository("https://jitpack.io"))
+
+@
+
+import $ivy.`fun.valycorp::mill-ensime:0.0.2`
 #+END_SRC
 
 You can then run the following to generate the ~.ensime~ file
