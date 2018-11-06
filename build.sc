@@ -5,9 +5,9 @@ import ammonite.ops._
 
 object ensime extends ScalaModule with PublishModule {
 
-  def scalaVersion = "2.12.6"
+  def scalaVersion = "2.12.7"
 
-  def publishVersion = "0.0.2"
+  def publishVersion = "0.0.3"
 
   def artifactName = "mill-ensime"
 
@@ -31,7 +31,7 @@ object ensime extends ScalaModule with PublishModule {
   )
 
   def compileIvyDeps = Agg(
-    ivy"com.lihaoyi::mill-scalalib:0.2.6",
+    ivy"com.lihaoyi::mill-scalalib:0.3.5",
     ivy"com.lihaoyi::geny:0.1.2",
   )
 
