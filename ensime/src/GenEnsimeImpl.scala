@@ -1,6 +1,5 @@
 package fun.valycorp.mill
 
-import ammonite.ops._
 import coursier.{Cache, Repository, Dependency}
 import coursier.maven.MavenRepository
 import mill.define._
@@ -73,13 +72,13 @@ object GenEnsimeImpl {
     import SExpFormatter._
 
     val evaluator =
-      new Evaluator(ctx.home, pwd / 'out, pwd / 'out, rootModule, ctx.log)
+      new Evaluator(ctx.home, os.pwd / 'out, os.pwd / 'out, rootModule, ctx.log)
 
     val config = toSExp(ensimeGenerateConfig(evaluator, rootModule, server))
 
-    rm ! pwd / ".ensime"
+    os.remove(os.pwd / ".ensime")
 
-    write.over(pwd / ".ensime", config)
+    os.write.over(os.pwd / ".ensime", config)
   }
 
   def evalOrElse[T](evaluator: Evaluator, e: Task[T], default: => T): T = {
@@ -244,12 +243,12 @@ object GenEnsimeImpl {
     }
 
     EnsimeConfig(
-      pwd.toString,
-      (pwd / ".ensime_cache").toString,
+      os.pwd.toString,
+      (os.pwd / ".ensime_cache").toString,
       scalaCompilerJars,
       ensimeServerJars,
       server,
-      pwd.last,
+      os.pwd.last,
       ensimeScalaVersion,
       javaHome,
       javaFlags,
