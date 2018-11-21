@@ -76,7 +76,7 @@ object GenEnsimeImpl {
 
     val config = toSExp(ensimeGenerateConfig(evaluator, rootModule, server))
 
-    os.remove(os.pwd / ".ensime")
+    os.remove.all(os.pwd / ".ensime")
 
     os.write.over(os.pwd / ".ensime", config)
   }
